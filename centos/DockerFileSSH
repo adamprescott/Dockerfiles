@@ -1,0 +1,36 @@
+# CentOS
+#
+# VERSION 1.0
+
+# Use the inital CentOS Image provided here
+FROM tianon/centos
+
+MAINTAINER Adam Prescott, adam.prescott@datascribe.co.uk
+
+# Ensure Image is up to date
+RUN yum update -y
+
+# Install SSH Daemon
+RUN yum install openssh-server -y
+RUN rpm -ivh http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el6.rf.x86_64.rpm
+
+# Install netcat from the above RepoForge Repositry
+RUN yum install nc -y
+
+# Set Default Root Password and change it
+ENV ROOTPASS qweasdzxc
+RUN echo 'root:'$ROOTPASS |chpasswd
+
+# Inital Start of SSHd to create server keys
+RUN service sshd start
+
+# This section creates a startup script which is executed when the system "boots"
+# The startup file currently allows the user to set the root password at boot when using "docker run" e.g.
+# docker run -d -P --env ROOTPASS=password imagename
+# This startup script also start sshd in daemon mode.
+RUN mkdir /src/
+RUN echo "echo 'root:'\$ROOTPASS |chpasswd" > /src/startup.sh
+RUN echo "/usr/sbin/sshd -D" >> /src/startup.sh
+
+EXPOSE 22
+CMD ["/bin/bash","/src/startup.sh"]
