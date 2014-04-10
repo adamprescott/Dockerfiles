@@ -7,6 +7,11 @@ FROM tianon/centos
 
 MAINTAINER Adam Prescott, adam.prescott@datascribe.co.uk
 
+# Set default Environmental Vars
+ENV ROOTPASS qweasdzxc
+ENV HTTPSERVERNAME "example.org"
+ENV HTTPSERVERALIAS "example.org www.example.org"
+
 # Ensure Image is up to date
 RUN yum update -y
 
@@ -15,10 +20,16 @@ RUN yum install openssh-server -y
 RUN rpm -ivh http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el6.rf.x86_64.rpm
 
 # Install netcat from the above RepoForge Repositry
-RUN yum install nc -y
+RUN yum install htop nc vim -y
 
-# Set Default Root Password and change it
-ENV ROOTPASS qweasdzxc
+# Setup Apache with PHP
+RUN yum install httpd php php-common php-devel php-pdo php-pear php-gd php-mysql php-xmlrpc php-xml -y
+RUN mkdir -p /var/www/sites/main/public_html
+RUN chmod -R 0755 /var/www/sites
+RUN mv /etc/httpd/conf.d/php.conf /etc/httpd/conf.d/01-php.conf
+RUN mv /etc/httpd/conf.d/welcome.conf /etc/httpd/conf.d/01-welcome.conf
+
+# Set Default Root Password
 RUN echo 'root:'$ROOTPASS |chpasswd
 
 # Inital Start of SSHd to create server keys
@@ -30,7 +41,19 @@ RUN service sshd start
 # This startup script also start sshd in daemon mode.
 RUN mkdir /src/
 RUN echo "echo 'root:'\$ROOTPASS |chpasswd" > /src/startup.sh
+RUN echo "echo '<VirtualHost *:80>' > /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "echo 'DocumentRoot \"/var/www/sites/main/public_html\"' >> /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "echo 'ServerAdmin webmaster@localhost' >> /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "echo 'ServerName '\$HTTPSERVERNAME >> /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "echo 'ServerAlias '\$HTTPSERVERALIAS >> /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "echo 'ErrorLog /var/www/sites/main/error_log' >> /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "echo '<Directory />' >> /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "echo 'AllowOverride All' >> /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "echo '</Directory>' >> /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "echo '</VirtualHost>' >> /etc/httpd/conf.d/02-main.conf" >> /src/startup.sh
+RUN echo "service httpd restart" >> /src/startup.sh
 RUN echo "/usr/sbin/sshd -D" >> /src/startup.sh
 
+EXPOSE 80
 EXPOSE 22
 CMD ["/bin/bash","/src/startup.sh"]
